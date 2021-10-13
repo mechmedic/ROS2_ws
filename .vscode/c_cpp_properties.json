@@ -4,7 +4,9 @@
             "name": "Linux",
             "includePath": [
                 "${workspaceFolder}/**",
-                "/opt/ros/dashing/include"
+                "/opt/ros/dashing/include",
+                "/usr/local/include/dynamixel_sdk",
+                "~/robotis_ws/install/dynamixel_sdk/include"
             ],
             "defines": [],
             "compilerPath": "/usr/bin/clang",

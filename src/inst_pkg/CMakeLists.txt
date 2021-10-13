@@ -18,7 +18,8 @@ endif()
 # **********************************************
 # CKim - Dependencies (headers and lib files) should be 
 #        added here. It can be conveniently set by using 
-#        CMake'sfind_package macro
+#        CMake's find_package macro or include_directories
+#        and link_directories
 # find dependencies
 find_package(ament_cmake REQUIRED)
 # uncomment the following section in order to fill in
@@ -26,12 +27,16 @@ find_package(ament_cmake REQUIRED)
 # find_package(<dependency> REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(std_msgs REQUIRED)
+find_package(dynamixel_sdk REQUIRED)
+
+include_directories("include/inst_pkg/")
+# link_directories("${CMAKE_BINARY_DIR}/my_lib/install/usr/local/lib")
 # **********************************************
 
 # **********************************************
 # CKim - Files to be compiled and built
-add_executable(inst_node src/main.cpp)
-ament_target_dependencies(inst_node rclcpp std_msgs)
+add_executable(inst_node src/main.cpp src/DxlMaster.cpp)
+ament_target_dependencies(inst_node rclcpp std_msgs dynamixel_sdk)
 # **********************************************
 
 # **********************************************

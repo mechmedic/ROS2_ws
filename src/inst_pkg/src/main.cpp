@@ -6,6 +6,8 @@
 #include "rclcpp/rclcpp.hpp"
 #include "std_msgs/msg/string.hpp"
 
+#include "DxlMaster.h"
+
 using namespace std::chrono_literals;
 
 /* This example creates a subclass of Node and uses std::bind() to register a
@@ -37,6 +39,8 @@ class MinimalPublisher : public rclcpp::Node
 
 int main(int argc, char * argv[])
 {
+  DxlMaster dxl;
+  dxl.InitializeDriver();
   rclcpp::init(argc, argv);
   rclcpp::spin(std::make_shared<MinimalPublisher>());
   rclcpp::shutdown();
