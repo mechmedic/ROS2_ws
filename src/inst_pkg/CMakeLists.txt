@@ -27,6 +27,7 @@ find_package(ament_cmake REQUIRED)
 # find_package(<dependency> REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(std_msgs REQUIRED)
+find_package(sensor_msgs REQUIRED)
 find_package(dynamixel_sdk REQUIRED)
 
 include_directories("include/inst_pkg/")
@@ -36,7 +37,7 @@ include_directories("include/inst_pkg/")
 # **********************************************
 # CKim - Files to be compiled and built
 add_executable(inst_node src/main.cpp src/DxlMaster.cpp)
-ament_target_dependencies(inst_node rclcpp std_msgs dynamixel_sdk)
+ament_target_dependencies(inst_node rclcpp std_msgs sensor_msgs dynamixel_sdk)
 # **********************************************
 
 # **********************************************

@@ -78,6 +78,13 @@ typedef struct {
 #define TORQUE_ENABLE                   1                   // Value for enabling the torque
 #define TORQUE_DISABLE                  0                   // Value for disabling the torque
 
+// Data Byte Length
+#define LEN_MX_GOAL_POSITION            2
+#define LEN_MX_PRESENT_POSITION         2
+#define LEN_MX_MOVING_SPEED             2
+
+#define NUM_DXL                         2                   // Number of Dynamixel
+
 #define DEG2RAD 3.141592/180.0
 #define RAD2DEG 180.0/3.141592
 
@@ -98,11 +105,11 @@ public:
 
     // CKim - Set Dynamixel Mode - This is done by setting cw and ccw limit
     // Wheel Mode : Both limit set to 0
-    // Multiturn Mode : Only for MX series. Both limit set to 4095, Use Multiturn offset and res divider to set number of turns
-    // Joint Mode : Otherwise. 
+    // Joint Mode : Set different cw and ccw limit.
+    // Multiturn Mode : Both limit set to 4095, Only for MX series. Use Multiturn offset and res divider to set number of turns
     int SetWheelMode(int id);
     int SetJointMode(int id, int cwlim, int ccwlim);
-    int SetMultiTurnMode(int id);       // CKim - Only for MX
+    // int SetMultiTurnMode(int id);       // CKim - Only for MX
 
     // CKim - Enable Torque
     int EnableTorque(int id);
@@ -111,16 +118,16 @@ public:
     // CKim - Motor Commands. Position is in counts. Velocity is in...
     int GetJpos(int id, int& Pos);          
     int SetJpos(int id, const int& Pos);
-    //int GetVel(int id, int& vel);          
-    //int SetVel(int id, const int& Vel);
+    int GetVel(int id, int& vel);          
+    int SetVel(int id, const int& Vel);
 
-    // CKim - Bulk read/write. To be implemented
+    // CKim - Uses SyncRead and Write. GetJposAll(), GetVelAll() only available for protocol V2.0
+    int SetJposAll(const int* pList);   
+    int SetVelAll(const int* vList);         
     // int GetJposAll(int* pList);          
-    // int SetJposAll(const int* pList);   
     // int GetVelAll(int* vList);         
-    // int GetVelAll(int* vList);         
-
-
+    
+    
     // void SetGain(int id, const float* DIP);  // CKim - Only for MX
     // int SetOffset();                         // CKim - Only for MX
 
@@ -132,9 +139,20 @@ private:
     char m_portName[40];
     int m_baudrate;    
 
-    dynamixel::GroupSyncWrite*  m_groupSyncWrite;
-    dynamixel::GroupBulkRead*   m_groupBulkRead;
+    // CKim - Sync Read(Write) reads from (writes to) same address of each connected dynamixel
+    // Bulk Read(Write) can reads from (writes to) different addresses of each connected dynamixel
+    // They are fully supported in protocol 2.0. For protocol 1.0, only SyncWrite is available 
+    // for all Dynamixel and BulkRead is available for MX and X series.
+    dynamixel::GroupSyncWrite*      m_groupSyncWritePos;
+    dynamixel::GroupSyncWrite*      m_groupSyncWriteVel;
+    dynamixel::GroupSyncRead*       m_groupSyncRead;
+    
+    dynamixel::GroupBulkRead*       m_groupBulkRead;
+    dynamixel::GroupBulkWrite*      m_groupBulkWrite;
 
     // CKim - Dynamixel Device IDs, baud rates
     int m_Id;
+
+    // CKim - List of all connected dynamixel ids
+    int m_devIds[NUM_DXL];
 };
