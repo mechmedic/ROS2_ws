@@ -39,10 +39,44 @@ class MinimalPublisher : public rclcpp::Node
 
 int main(int argc, char * argv[])
 {
-  DxlMaster dxl;
-  dxl.InitializeDriver();
+  DxlMaster dxl;  int p = 0;
+  dxl.InitializeDriver(MODEMDEVICE,BAUDRATE,PROTOCOL_VERSION);
+  getchar();
+  dxl.GetDynamixelInfo(1);
+  getchar();
+  dxl.GetDynamixelInfo(2);
+  getchar();
+  dxl.SetJointMode(1,0,4095);
+  getchar();
+  dxl.SetJointMode(2,0,1023);
+  getchar();
+
+  printf("Enabling...\n");
+  dxl.EnableTorque(1);
+  getchar();
+  printf("Enabling...\n");
+  dxl.EnableTorque(2);
+
+  printf("1...\n");
+  dxl.SetJpos(1, 2000);
+  getchar();
+  dxl.GetJpos(1,p);
+  printf("Position %d\n",p);
+  printf("2...\n");
+  dxl.SetJpos(2, 500);
+  getchar();
+  dxl.GetJpos(2,p);
+  printf("Position %d\n",p);
+  getchar();
+
+  
+
+
+
   rclcpp::init(argc, argv);
-  rclcpp::spin(std::make_shared<MinimalPublisher>());
+  //rclcpp::spin(std::make_shared<MinimalPublisher>());
   rclcpp::shutdown();
+  for(int i=1; i<3; i++)  {   dxl.DisableTorque(i);  }
+  dxl.Disconnect();
   return 0;
 }

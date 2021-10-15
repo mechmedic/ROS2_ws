@@ -1,14 +1,8 @@
 // --------------------------------------------------------------------- //
 // CKim - Oct. 14, 2021 : Class encapsulating Dynamixel
+// For MX series with protocol version 1.0
+// Will need to upgrade for X series with protocol version 2.0
 // --------------------------------------------------------------------- //
-
-// // CKim - ROS include
-// #include <ros/ros.h>
-
-// // CKim - Headers for the published / subscribed message.
-// #include <TeleOp/TeleOpCmd.h>
-// #include <ObjWrist/WristStatus.h>
-
 // CKim - These header files and definitions are for serial communications
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -18,83 +12,75 @@
 #include <signal.h>		// CKim - For catching 'ctrl-c' input
 #include <sys/ioctl.h>
 #include <linux/serial.h>
-
-////////////////////////////start rt prempt include///////////////////////////////
-#include <time.h>
-#include <sched.h>
-#include <sys/mman.h>
 #include <string.h>
-#include <unistd.h>
-#include <malloc.h>
-#include <pthread.h>
-////////////////////////////end rt prempt include///////////////////////////////
-
-#define _POSIX_SOURCE 1 /* POSIX compliant source */
-
-#define MAXLOOF 50
-
-///////////////////////////start rt prempt define///////////////////////////////
-#define MY_PRIORITY (49) /* we use 49 as the PRREMPT_RT use 50 as the priority of kernel tasklets and interrupt handler by default */
-#define POOLSIZE (1*1024*1024) /* The maximum stack size which is guaranteed safe to access without faulting */
-#define NSEC_PER_SEC (1000000000) /* The number of nsecs per sec. */
-#define N_EVER 100
-
-#define NS  	(1)
-#define US  	(1000 * NS)
-#define MS  	(1000 * US)
-#define SEC 	(1000 * MS)
-////////////////////////////end rt prempt define///////////////////////////////
-
-
 
 #include "dynamixel_sdk/dynamixel_sdk.h"      // CKim - Uses Dynamixel SDK library that is installed with the ROS
 
+#define MX28 1
 
 // ---------------- Dynamixel Defines --------------------------------- //
-// CKim - Control table data addressof MX28
+// CKim - Control table data address of MX28/ RX24F. May differ between Dynamixel model
 // https://emanual.robotis.com/docs/en/dxl/mx/mx-28/#control-table-data-address
 // https://emanual.robotis.com/docs/en/dxl/mx/mx-28/#cw-angle-limit
-// Control table address
-#define ADDR_MX_TORQUE_ENABLE           24                  // Control table address is different in Dynamixel model
-#define ADDR_MX_GOAL_POSITION           30
-#define ADDR_MX_PRESENT_POSITION        36
-#define ADDR_CW_ANGLE_LIM               6                   // Set this to 4095 to enable multiturn
-#define ADDR_ANGLE_DIVIDER              22
-#define ADDR_DIP_GAIN                   26
 
-// Data Byte Length
-#define LEN_MX_GOAL_POSITION            2
-#define LEN_MX_PRESENT_POSITION         2
-#define LEN_CW_ANGLE_LIM                2
-#define LEN_ANGLE_DIVIDER               1
-#define LEN_DIP_GAIN                    3                   // 1 byte per each D,I,P Gain
+#if MX28                                        
+                                                // Description (Byte Size, Access, Init Val)
+#define ADDR_MX_MODEL_NUMBER            0       // Model Number (2, R,29)
+#define ADDR_MX_FIRMWARE_VER            2       // Firmware Version (1, R, -)
+#define ADDR_MX_ID                      3       // Dynamixel ID (1, RW, 1)
+#define ADDR_MX_BAUDRATE                4       // Baud Rate (1, RW, 24)
+#define ADDR_MX_RETURN_DELAY            5       // Response delay time (1, RW, 250)
+#define ADDR_MX_CW_ANGLE_LIM            6       // Clockwise Angle Limit (2, RW, 0). Set this and CCW angle limit to 4095 to enable multiturn
+#define ADDR_MX_CCW_ANGLE_LIM           8       // Counter Clockwise Angle Limit (2, RW, 0). Set this and CW angle limit to 4095 to enable multiturn
+#define ADDR_MX_TEMP_LIM                11      // Internal temperature limit (1, RW, 80), Don't modify
+#define ADDR_MX_MIN_VOLT_LIM            12      // Minimum input voltage limit (1, RW, 60), Don't modify 
+#define ADDR_MX_MAX_VOLT_LIM            13      // Maximum input voltage limit (1, RW, 160 ), Don't modify 
+#define ADDR_MX_MAX_TORQUE              14      // Maximum torque (2, RW, 1023)
+#define ADDR_MX_STATUS_RETURN           16      // Select type of status return (1, RW, 2)
+#define ADDR_MX_ALARM_LED               17      // LED for alarm (1, RW, 36)
+#define ADDR_MX_SHUTDOWN                18      // Shutdown error info (1, RW, 36)
+
+// // CKim - Only for MX28
+// #define ADDR_MX_MULTITURN_OFFSET        20      // Offset for position value (2, RW, 0)
+// #define ADDR_MX_RES_DIV                 22      // Position resolution divider (1, RW, 1)
+
+#define ADDR_MX_TORQUE_ENABLE           24      // Torque enable (1, RW, 0)
+#define ADDR_MX_GOAL_POSITION           30      // Desired Position (2, RW, -)
+#define ADDR_MX_MOVING_SPEED            32      // Moving velocity (2, RW, -)
+#define ADDR_MX_PRESENT_POSITION        36      // Current Position (2,R, -)
+#define ADDR_MX_PRESENT_SPEED           38      // Current speed (2, R, -)
+#define ADDR_MX_MOVING                  46      // Motionstate (1, R, -)
+
+#endif
+
+// CKim - Struct for holding basic Dynamixel info 
+typedef struct {
+    uint16_t modelNum;
+    uint8_t id;
+    uint8_t baudrate;
+    uint16_t cwAngLim;
+    uint16_t ccwAngLim;
+    //uint16_t multiturnOffset; // Only for MX28
+    //uint16_t resDiv;          // Only for MX28
+} DxlInfo;
+
+// CKim - tty means TeleTYpewriter, which used to be the input output 'terminals'
+// of the computers system in the past. Now, it refers to the general 'terminals' of the device.
+// Change this definition for the correct port. We will be using terminal of the COM port.
+#define MODEMDEVICE "/dev/ttyUSB0"		// CKim - Linux. This is for FTDI USB RS485 cable
 
 // Protocol version
 #define PROTOCOL_VERSION                1.0                 // See which protocol version is used in the Dynamixel
 
 // Default setting
-#define DXL1_ID                         1                   // Dynamixel#1 ID: 1
-#define DXL2_ID                         2                   // Dynamixel#2 ID: 2
-#define DXL3_ID                         3                   // Dynamixel#3 ID: 3
 #define BAUDRATE                        1000000
 
 #define TORQUE_ENABLE                   1                   // Value for enabling the torque
 #define TORQUE_DISABLE                  0                   // Value for disabling the torque
-#define MULTITURN_ENABLE                4095
-
-// CKim - tty means TeleTYpewriter, which used to be the input output 'terminals'
-// of the computers system in the past. Now, it refers to the general 'terminals' of the device.
-// Change this definition for the correct port. We will be using terminal of the COM port.
-//#define MODEMDEVICE "/dev/ttyUSB0"		// This is for FTDI USB RS485 cable
-
-#define LEFT_HAND  1
-#define RIGHT_HAND 2
 
 #define DEG2RAD 3.141592/180.0
 #define RAD2DEG 180.0/3.141592
 
-//#include "ChunKinematics.h"
-//#include "WristKin.h"
 
 class DxlMaster
 {
@@ -104,85 +90,51 @@ public:
 	~DxlMaster();
 
     // CKim - Initialize Dynamixel .... RS485 port open and close...
-    int InitializeDriver();
-    void EnableTorque();
-    void DisableTorque();
+    int InitializeDriver(const char* portName, const int baudrate, int protocolVer);
     void Disconnect();
 
-    // CKim - Initialize ROS publishing and subscription
-    //int InitializeROS();
-////    void PublishState(unsigned char pState[]);
+    // CKim - Read Dynamixel Info
+    void GetDynamixelInfo(int id);
 
-    // CKim - SetHands
-   // void SetLeftHand();
-   // void SetRightHand();
+    // CKim - Set Dynamixel Mode - This is done by setting cw and ccw limit
+    // Wheel Mode : Both limit set to 0
+    // Multiturn Mode : Only for MX series. Both limit set to 4095, Use Multiturn offset and res divider to set number of turns
+    // Joint Mode : Otherwise. 
+    int SetWheelMode(int id);
+    int SetJointMode(int id, int cwlim, int ccwlim);
+    int SetMultiTurnMode(int id);       // CKim - Only for MX
 
-    // CKim - Motor Commands
-    bool GetJpos(int* pPos);    // in counts
-    bool SetJpos(int* pPos);
-    bool SetMultiTurn(bool onoff);
-    void SetGain(int id, const float* DIP);
-    int SetOffset();
+    // CKim - Enable Torque
+    int EnableTorque(int id);
+    int DisableTorque(int id);
 
-	//bool SolveInvKin(const double tgtDir[3], double mtrAng[3]);		// Angle in Degree
-	//void SolveFwdKin(const double mtrAng[3], Mat3& R);				// Angle in Degree
+    // CKim - Motor Commands. Position is in counts. Velocity is in...
+    int GetJpos(int id, int& Pos);          
+    int SetJpos(int id, const int& Pos);
+    //int GetVel(int id, int& vel);          
+    //int SetVel(int id, const int& Vel);
 
-    //    // CKim - Send Commands
-//    void SetVel(int id, const int& vel);
+    // CKim - Bulk read/write. To be implemented
+    // int GetJposAll(int* pList);          
+    // int SetJposAll(const int* pList);   
+    // int GetVelAll(int* vList);         
+    // int GetVelAll(int* vList);         
 
 
-    // CKim - This function is executed in separate thread.
-    // Continuously reads and writes to CatheterDriver by RS485
-    //static void* ThrCallback(void* pData);
-   // static pthread_mutex_t mutex1;
-    //int16_t m_TgtMtrCnt[3];
-	//int16_t m_CurrMtrCnt[3];
+    // void SetGain(int id, const float* DIP);  // CKim - Only for MX
+    // int SetOffset();                         // CKim - Only for MX
 
 private:
-
-    // CKim - Callback for subscribed ROS message
-	//void HapticBack(const TeleOp::TeleOpCmd msg);
-
-    // CKim - ROS variables
-    //ros::NodeHandle nh;
-    //ros::Subscriber haptic_sub;
-	//ros::Publisher pubWristStatus;
-	//ObjWrist::WristStatus msgStatus;
 
     // CKim - Dynamixel Variables. Class for handling serial port, handling packets
     dynamixel::PortHandler*     m_portHandler;
     dynamixel::PacketHandler*   m_packetHandler;
+    char m_portName[40];
+    int m_baudrate;    
+
     dynamixel::GroupSyncWrite*  m_groupSyncWrite;
     dynamixel::GroupBulkRead*   m_groupBulkRead;
 
     // CKim - Dynamixel Device IDs, baud rates
-    int m_devIds[3];
-    int m_baudrate;
-    int m_cntPerRevolution;
-    int m_resDivider;
-    float m_tr[2];               // CKim - Gear transmission ratio. 7/6 1 Dynamixel turn rotates axis 7/6 turn
-
-    // int m_Hand;     // 1 Left, 2 Right
-    // double m_RyRx[2];
-    // double m_prevSol[4];
-    // double m_currSol[4];
-    // double m_prevRyRx[2];
-    // double m_grasp;
-    int16_t m_MtrCntOffset[3];
-		
-    char m_portName[40];
-
-	// Mat3 m_prevSlave;
-	// Mat3 m_InitSlave;
-	// Mat3 m_MasterToSlave;
-	//int m_pedalFirst;
+    int m_Id;
 };
-
-static inline void tsnorm(struct timespec *ts)
-{
-    while (ts->tv_nsec >= NSEC_PER_SEC)
-    {
-        ts->tv_nsec -= NSEC_PER_SEC;
-        ts->tv_sec++;
-    }
-}

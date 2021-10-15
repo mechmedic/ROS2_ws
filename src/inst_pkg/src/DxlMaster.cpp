@@ -1,4 +1,3 @@
-
 #include "DxlMaster.h"
 #include <sys/time.h>
 #include <stdio.h>
@@ -8,19 +7,8 @@
 
 DxlMaster::DxlMaster()
 {
-    for(int i=0; i<3; i++)
-    {
-        m_devIds[i] = i+1;  // 3 Devices 1,2,3
-    }
-    m_baudrate = BAUDRATE;
-
     m_groupSyncWrite = NULL;
     m_groupBulkRead = NULL;
-
-    m_cntPerRevolution = 4095;
-    m_resDivider = 1;
-    m_tr[0] = -7.0/6.0;
-    m_tr[1] = 7.0/6.0;
 }
 
 DxlMaster::~DxlMaster()
@@ -28,249 +16,355 @@ DxlMaster::~DxlMaster()
 
 }
 
-int DxlMaster::InitializeDriver()
+int DxlMaster::InitializeDriver(const char* portName, const int baudrate, int protocolVer)
 {
     // CKim - Set port path, protocol version
+    strcpy(m_portName,portName);    
+    m_baudrate = baudrate;
     m_portHandler = dynamixel::PortHandler::getPortHandler(m_portName);
-    m_packetHandler = dynamixel::PacketHandler::getPacketHandler(PROTOCOL_VERSION);
+    m_packetHandler = dynamixel::PacketHandler::getPacketHandler(protocolVer);
 
     // CKim - Open port
     if (m_portHandler->openPort())    {
-      printf("Succeeded to open the port!\n");
+        printf("Succeeded to open the port %s\n",m_portName);
     }
     else    {
-      printf("Failed to open the port!\n");
-      return 0;
+        printf("Failed to open the port %s\n",m_portName);
+        return 0;
     }
 
     // CKim - Set port baudrate
     if (m_portHandler->setBaudRate(BAUDRATE))    {
-      printf("Succeeded to change the baudrate!\n");
+        printf("Succeeded to change the baudrate to %d\n",BAUDRATE);
     }
     else    {
-      printf("Failed to change the baudrate!\n");
-      return 0;
+        printf("Failed to change the baudrate to %d\n",BAUDRATE);
+        return 0;
     }
 
-    // CKim - Initialize GroupSyncWrite instance. Set up parameters to write at the same time
-    m_groupSyncWrite = new dynamixel::GroupSyncWrite(m_portHandler, m_packetHandler, ADDR_MX_GOAL_POSITION, LEN_MX_GOAL_POSITION);
+    // // CKim - Initialize GroupSyncWrite instance. Set up parameters to write at the same time
+    // m_groupSyncWrite = new dynamixel::GroupSyncWrite(m_portHandler, m_packetHandler, ADDR_MX_GOAL_POSITION, LEN_MX_GOAL_POSITION);
 
-    // CKim - Initialize GroupBulkRead instance. Set up parameters to bulk read
-    m_groupBulkRead = new dynamixel::GroupBulkRead(m_portHandler, m_packetHandler);
-    for(int i=0; i<3; i++)
-    {
-        // CKim - We will read present position of each actuators
-        bool dxl_addparam_result = m_groupBulkRead->addParam(m_devIds[i], ADDR_MX_PRESENT_POSITION, LEN_MX_PRESENT_POSITION);
-        if (dxl_addparam_result != true)
-        {
-            fprintf(stderr, "[ID:%03d] grouBulkRead addparam failed", m_devIds[i]);
-            return 0;
-        }
-    }
+    // // CKim - Initialize GroupBulkRead instance. Set up parameters to bulk read
+    // m_groupBulkRead = new dynamixel::GroupBulkRead(m_portHandler, m_packetHandler);
+    // for(int i=0; i<3; i++)
+    // {
+    //     // CKim - We will read present position of each actuators
+    //     bool dxl_addparam_result = m_groupBulkRead->addParam(m_devIds[i], ADDR_MX_PRESENT_POSITION, LEN_MX_PRESENT_POSITION);
+    //     if (dxl_addparam_result != true)
+    //     {
+    //         fprintf(stderr, "[ID:%03d] grouBulkRead addparam failed", m_devIds[i]);
+    //         return 0;
+    //     }
+    // }
 
     return 1;
-}
-
-void DxlMaster::EnableTorque()
-{
-    int dxl_comm_result = COMM_TX_FAIL;             // Communication result
-    uint8_t dxl_error = 0;                          // Dynamixel error
-
-    for(int i=0; i<3; i++)
-    {
-        dxl_comm_result = m_packetHandler->write1ByteTxRx(m_portHandler, m_devIds[i], ADDR_MX_TORQUE_ENABLE, TORQUE_ENABLE, &dxl_error);
-        if (dxl_comm_result != COMM_SUCCESS)
-        {
-          printf("%s\n", m_packetHandler->getTxRxResult(dxl_comm_result));
-        }
-        else if (dxl_error != 0)
-        {
-          printf("%s\n", m_packetHandler->getRxPacketError(dxl_error));
-        }
-        else
-        {
-          printf("Dynamixel#%d has been successfully connected \n", m_devIds[i]);
-        }
-    }
-}
-
-void DxlMaster::DisableTorque()
-{
-    int dxl_comm_result = COMM_TX_FAIL;             // Communication result
-    uint8_t dxl_error = 0;                          // Dynamixel error
-
-    for(int i=0; i<3; i++)
-    {
-        dxl_comm_result = m_packetHandler->write1ByteTxRx(m_portHandler, m_devIds[i], ADDR_MX_TORQUE_ENABLE, TORQUE_DISABLE, &dxl_error);
-        if (dxl_comm_result != COMM_SUCCESS)
-        {
-          printf("%s\n", m_packetHandler->getTxRxResult(dxl_comm_result));
-        }
-        else if (dxl_error != 0)
-        {
-          printf("%s\n", m_packetHandler->getRxPacketError(dxl_error));
-        }
-        else
-        {
-          printf("Dynamixel#%d has been successfully disconnected \n", m_devIds[i]);
-        }
-    }
 }
 
 void DxlMaster::Disconnect()
 {
     if(m_groupSyncWrite)    delete m_groupSyncWrite;
-    if(m_groupBulkRead)    delete m_groupBulkRead;
+     if(m_groupBulkRead)     delete m_groupBulkRead;
 
     // Close port
     m_portHandler->closePort();
-    //ROS_INFO("%s","Closing SerialPort");
+    printf("%s","Closing SerialPort");
 }
 
-bool DxlMaster::GetJpos(int *pPos)
-{
-	int dxl_comm_result = COMM_TX_FAIL;             // Communication result
-	bool dxl_getdata_result = false;                 // GetParam result
-
-	// CKim - Read current position. Bulkread is synchronized read
-	dxl_comm_result = m_groupBulkRead->txRxPacket();
-	if (dxl_comm_result != COMM_SUCCESS)
-	{
-		fprintf(stderr,"Sparta!! ");
-		fprintf(stderr, "%s\n", m_packetHandler->getTxRxResult(dxl_comm_result));
-		return 0;
-	}
-
-	for(int i=0; i<3; i++)
-	{
-		dxl_getdata_result = m_groupBulkRead->isAvailable(m_devIds[i], ADDR_MX_PRESENT_POSITION, LEN_MX_PRESENT_POSITION);
-		if (dxl_getdata_result != true)
-		{
-		  fprintf(stderr, "[ID:%03d] groupBulkRead getdata failed", m_devIds[i]);
-		  return 0;
-		}
-
-		// Get Dynamixel present position value
-		pPos[i] = m_groupBulkRead->getData(m_devIds[i], ADDR_MX_PRESENT_POSITION, LEN_MX_PRESENT_POSITION);
-		//printf("%d  ",dxl_curr_position[i]);
-	}
-	//printf("\n ");
-
-	return 1;
-
-}
-
-bool DxlMaster::SetJpos(int *pPos)
-{
-    int dxl_comm_result = COMM_TX_FAIL;             // Communication result
-    bool dxl_addparam_result = false;               // addParam result
-    uint8_t param_goal_position[2];
-
-    // CKim - Fill in data to write
-    for(int i=0; i<3; i++)
-    {
-        // Allocate goal position value into byte array
-        param_goal_position[0] = DXL_LOBYTE(pPos[i]);
-        param_goal_position[1] = DXL_HIBYTE(pPos[i]);
-
-        // Add Dynamixel#1 goal position value to the Syncwrite storage
-        dxl_addparam_result = m_groupSyncWrite->addParam(m_devIds[i], param_goal_position);
-        if (dxl_addparam_result != true)
-        {
-            fprintf(stderr, "[ID:%03d] groupSyncWrite addparam failed", m_devIds[i]);
-            return 0;
-        }
-    }
-
-    // CKim - Synchronized write to multiple dynamixel
-	dxl_comm_result = m_groupSyncWrite->txPacket();
-    if (dxl_comm_result != COMM_SUCCESS)
-    {
-        fprintf(stderr, "%s\n", m_packetHandler->getTxRxResult(dxl_comm_result));
-        return 0;
-    }
-
-    // Clear syncwrite parameter storage
-    m_groupSyncWrite->clearParam();
-
-    return 1;
-}
-
-bool DxlMaster::SetMultiTurn(bool onoff)
+void DxlMaster::GetDynamixelInfo(int id)
 {
     int dxl_comm_result = COMM_TX_FAIL;             // Communication result
     uint8_t dxl_error = 0;                          // Dynamixel error
-    uint16_t flag;
 
-    if(onoff)   {   flag = 4095;    }
-    else        {   flag = 0;       }
-
-    for(int i=0; i<3; i++)
-    {
-        dxl_comm_result = m_packetHandler->write2ByteTxRx(m_portHandler, m_devIds[i], ADDR_CW_ANGLE_LIM, flag, &dxl_error);
-        if (dxl_comm_result != COMM_SUCCESS)
-        {
-            printf("%s\n", m_packetHandler->getTxRxResult(dxl_comm_result));
-        }
-        else if (dxl_error != 0)
-        {
-            printf("%s\n", m_packetHandler->getRxPacketError(dxl_error));
-        }
-        else
-        {
-            printf("Dynamixel#%d has been set to ", m_devIds[i]);
-            if(onoff)   {   printf("MultiTurn mode\n"); }
-            else        {   printf("Joint mode\n"); }
-        }
+    DxlInfo info;
+    // Model Num
+    dxl_comm_result = m_packetHandler->read2ByteTxRx(m_portHandler, id, ADDR_MX_MODEL_NUMBER, &info.modelNum, &dxl_error);
+    if ( (dxl_comm_result != COMM_SUCCESS) || (dxl_error != 0) )    {
+        printf("Comm result %s, Packet error %s\n", m_packetHandler->getTxRxResult(dxl_comm_result), m_packetHandler->getRxPacketError(dxl_error));
     }
+    // m_Id
+    dxl_comm_result = m_packetHandler->read1ByteTxRx(m_portHandler, id, ADDR_MX_ID, &info.id, &dxl_error);
+    if ( (dxl_comm_result != COMM_SUCCESS) || (dxl_error != 0) )    {
+        printf("Comm result %s, Packet error %s\n", m_packetHandler->getTxRxResult(dxl_comm_result), m_packetHandler->getRxPacketError(dxl_error));
+    }
+    //Baud rate
+    dxl_comm_result = m_packetHandler->read1ByteTxRx(m_portHandler, id, ADDR_MX_BAUDRATE, &info.baudrate, &dxl_error);
+    if ( (dxl_comm_result != COMM_SUCCESS) || (dxl_error != 0) )    {
+        printf("Comm result %s, Packet error %s\n", m_packetHandler->getTxRxResult(dxl_comm_result), m_packetHandler->getRxPacketError(dxl_error));
+    }
+    // cwAngLim
+    dxl_comm_result = m_packetHandler->read2ByteTxRx(m_portHandler, id, ADDR_MX_CW_ANGLE_LIM, &info.cwAngLim, &dxl_error);
+    if ( (dxl_comm_result != COMM_SUCCESS) || (dxl_error != 0) )    {
+        printf("Comm result %s, Packet error %s\n", m_packetHandler->getTxRxResult(dxl_comm_result), m_packetHandler->getRxPacketError(dxl_error));
+    }
+    // ccwAngLim
+    dxl_comm_result = m_packetHandler->read2ByteTxRx(m_portHandler, id, ADDR_MX_CCW_ANGLE_LIM, &info.ccwAngLim, &dxl_error);
+    if ( (dxl_comm_result != COMM_SUCCESS) || (dxl_error != 0) )    {
+        printf("Comm result %s, Packet error %s\n", m_packetHandler->getTxRxResult(dxl_comm_result), m_packetHandler->getRxPacketError(dxl_error));
+    }
+    // // Multiturn offset
+    // dxl_comm_result = m_packetHandler->read2ByteTxRx(m_portHandler, id, ADDR_MX_MULTITURN_OFFSET, &info.multiturnOffset, &dxl_error);
+    // if ( (dxl_comm_result != COMM_SUCCESS) || (dxl_error != 0) )    {
+    //     printf("Comm result %s, Packet error %s\n", m_packetHandler->getTxRxResult(dxl_comm_result), m_packetHandler->getRxPacketError(dxl_error));
+    // }
+    // // Resolution divider
+    // dxl_comm_result = m_packetHandler->read2ByteTxRx(m_portHandler, id, ADDR_MX_RES_DIV, &info.resDiv, &dxl_error);
+    // if ( (dxl_comm_result != COMM_SUCCESS) || (dxl_error != 0) )    {
+    //     printf("Comm result %s, Packet error %s\n", m_packetHandler->getTxRxResult(dxl_comm_result), m_packetHandler->getRxPacketError(dxl_error));
+    // }
 
-    return 1;
+    printf("Dynamixel id %d \n", info.id); 
+    printf("  Model num %d baudrate %d\n", info.modelNum, info.baudrate); 
+    printf("  CW and CCW angle lim %d, %d\n", info.cwAngLim, info.ccwAngLim);
+    // printf("  Multiturn offset %d\n",info.multiturnOffset);
+    // printf("  Resolution divider %d\n",info.resDiv);
 }
 
-void DxlMaster::SetGain(int id, const float* DIP)
+int DxlMaster::SetWheelMode(int id)
 {
     int dxl_comm_result = COMM_TX_FAIL;             // Communication result
     uint8_t dxl_error = 0;                          // Dynamixel error
-    uint8_t dipGain[3];
 
-    // CKim - Conversion formula from Dynamixel manual
-    dipGain[0] = DIP[0]*250.0;
-    dipGain[1] = DIP[1]*2.048;
-    dipGain[2] = DIP[2]*8.0;
+    // CKim - Write 0 to both cw and ccw limit
+    dxl_comm_result = m_packetHandler->write2ByteTxRx(m_portHandler, id, ADDR_MX_CW_ANGLE_LIM, 0, &dxl_error);
+    if ( (dxl_comm_result != COMM_SUCCESS) || (dxl_error != 0) )    {
+        printf("Comm result %s, Packet error %s\n", m_packetHandler->getTxRxResult(dxl_comm_result), m_packetHandler->getRxPacketError(dxl_error));
+        return 0;
+    }    
 
-    for(int i=0;i<3; i++)
-    {
-        dxl_comm_result = m_packetHandler->write1ByteTxRx(m_portHandler, m_devIds[id], ADDR_DIP_GAIN+i, dipGain[i],&dxl_error);
-        if (dxl_comm_result != COMM_SUCCESS)
-        {
-            printf("%s\n", m_packetHandler->getTxRxResult(dxl_comm_result));
-        }
-        else if (dxl_error != 0)
-        {
-            printf("%s\n", m_packetHandler->getRxPacketError(dxl_error));
-        }
-        else
-        {
-            printf("DIP[%d] of Dynamixel %d set\n",i,id);
-        }
+    dxl_comm_result = m_packetHandler->write2ByteTxRx(m_portHandler, id, ADDR_MX_CCW_ANGLE_LIM, 0, &dxl_error);
+    if ( (dxl_comm_result != COMM_SUCCESS) || (dxl_error != 0) )    {
+        printf("Comm result %s, Packet error %s\n", m_packetHandler->getTxRxResult(dxl_comm_result), m_packetHandler->getRxPacketError(dxl_error));
+        return 0;
     }
+    return 1;
 }
 
-int DxlMaster::SetOffset()
+int DxlMaster::SetJointMode(int id, int cwlim, int ccwlim)
 {
-    int dxl_curr_position[3] = {0,0,0};  // Current position
-
-    // CKim - Read position
-    bool res = GetJpos(dxl_curr_position);
-    if(!res)    {
-        fprintf(stderr, "Error while reading position");
+    if(cwlim > ccwlim)  {
+        printf("ccwlim should be larger yhan cwlim\n");
+        return 0;
+    }
+    if((cwlim < 0) || (ccwlim > 4095))  {
+        printf("Invalid joint limit\n");
         return 0;
     }
 
-    for(int i=0; i<3; i++)  {   m_MtrCntOffset[i] = dxl_curr_position[i];   }
-    printf("Offset is %d %d %d\n", m_MtrCntOffset[0],m_MtrCntOffset[1],m_MtrCntOffset[2]);
-    //for(int i=0; i<3; i++)  {   m_TgtMtrCnt[i] = m_MtrCntOffset[i];   }
+    int dxl_comm_result = COMM_TX_FAIL;             // Communication result
+    uint8_t dxl_error = 0;                          // Dynamixel error
+
+    // CKim - Write cw and ccw limit
+    dxl_comm_result = m_packetHandler->write2ByteTxRx(m_portHandler, id, ADDR_MX_CW_ANGLE_LIM, cwlim, &dxl_error);
+    if ( (dxl_comm_result != COMM_SUCCESS) || (dxl_error != 0) )    {
+        printf("Comm result %s, Packet error %s\n", m_packetHandler->getTxRxResult(dxl_comm_result), m_packetHandler->getRxPacketError(dxl_error));
+        return 0;
+    }    
+
+    dxl_comm_result = m_packetHandler->write2ByteTxRx(m_portHandler, id, ADDR_MX_CCW_ANGLE_LIM, ccwlim, &dxl_error);
+    if ( (dxl_comm_result != COMM_SUCCESS) || (dxl_error != 0) )    {
+        printf("Comm result %s, Packet error %s\n", m_packetHandler->getTxRxResult(dxl_comm_result), m_packetHandler->getRxPacketError(dxl_error));
+        return 0;
+    }
+    return 1;
 }
+
+int DxlMaster::SetMultiTurnMode(int id)
+{
+    int dxl_comm_result = COMM_TX_FAIL;             // Communication result
+    uint8_t dxl_error = 0;                          // Dynamixel error
+
+    // CKim - Write 4095 to both cw and ccw limit
+    dxl_comm_result = m_packetHandler->write2ByteTxRx(m_portHandler, id, ADDR_MX_CW_ANGLE_LIM, 4095, &dxl_error);
+    if ( (dxl_comm_result != COMM_SUCCESS) || (dxl_error != 0) )    {
+        printf("Comm result %s, Packet error %s\n", m_packetHandler->getTxRxResult(dxl_comm_result), m_packetHandler->getRxPacketError(dxl_error));
+        return 0;
+    }    
+
+    dxl_comm_result = m_packetHandler->write2ByteTxRx(m_portHandler, id, ADDR_MX_CCW_ANGLE_LIM, 4095, &dxl_error);
+    if ( (dxl_comm_result != COMM_SUCCESS) || (dxl_error != 0) )    {
+        printf("Comm result %s, Packet error %s\n", m_packetHandler->getTxRxResult(dxl_comm_result), m_packetHandler->getRxPacketError(dxl_error));
+        return 0;
+    }
+    return 1;
+}
+
+int DxlMaster::EnableTorque(int id)
+{
+    int dxl_comm_result = COMM_TX_FAIL;             // Communication result
+    uint8_t dxl_error = 0;                          // Dynamixel error
+
+    dxl_comm_result = m_packetHandler->write1ByteTxRx(m_portHandler, id, ADDR_MX_TORQUE_ENABLE, TORQUE_ENABLE, &dxl_error);
+    if ( (dxl_comm_result != COMM_SUCCESS) || (dxl_error != 0) )    {
+        printf("Comm result %s, Packet error %s\n", m_packetHandler->getTxRxResult(dxl_comm_result), m_packetHandler->getRxPacketError(dxl_error));
+        return 0;
+    }    
+    return 1;
+}
+
+int DxlMaster::DisableTorque(int id)
+{
+    int dxl_comm_result = COMM_TX_FAIL;             // Communication result
+    uint8_t dxl_error = 0;                          // Dynamixel error
+
+    dxl_comm_result = m_packetHandler->write1ByteTxRx(m_portHandler, id, ADDR_MX_TORQUE_ENABLE, TORQUE_DISABLE, &dxl_error);
+    if ( (dxl_comm_result != COMM_SUCCESS) || (dxl_error != 0) )    {
+        printf("Comm result %s, Packet error %s\n", m_packetHandler->getTxRxResult(dxl_comm_result), m_packetHandler->getRxPacketError(dxl_error));
+        return 0;
+    }    
+    return 1;
+}
+
+int DxlMaster::GetJpos(int id, int& Pos)
+{
+    int dxl_comm_result = COMM_TX_FAIL;             // Communication result
+    uint8_t dxl_error = 0;                          // Dynamixel error
+    uint16_t p;
+    dxl_comm_result = m_packetHandler->read2ByteTxRx(m_portHandler, id, ADDR_MX_PRESENT_POSITION, &p, &dxl_error);
+    if ( (dxl_comm_result != COMM_SUCCESS) || (dxl_error != 0) )    {
+        printf("Comm result %s, Packet error %s\n", m_packetHandler->getTxRxResult(dxl_comm_result), m_packetHandler->getRxPacketError(dxl_error));
+        return 0;
+    }
+    Pos = p;
+    return 1;
+}
+
+int DxlMaster::SetJpos(int id, const int& Pos)
+{
+    int dxl_comm_result = COMM_TX_FAIL;             // Communication result
+    uint8_t dxl_error = 0;                          // Dynamixel error
+
+    dxl_comm_result = m_packetHandler->write2ByteTxRx(m_portHandler, id, ADDR_MX_GOAL_POSITION, Pos, &dxl_error);
+    if ( (dxl_comm_result != COMM_SUCCESS) || (dxl_error != 0) )    {
+        printf("Comm result %s, Packet error %s\n", m_packetHandler->getTxRxResult(dxl_comm_result), m_packetHandler->getRxPacketError(dxl_error));
+        return 0;
+    }    
+    return 1;
+}
+
+// int DxlMaster::GetVel(int id, int& vel)
+// {
+
+// }
+
+// int DxlMaster::SetVel(int id, const int& Vel)
+// {
+
+// }
+
+// bool DxlMaster::GetJpos(int *pPos)
+// {
+// 	int dxl_comm_result = COMM_TX_FAIL;             // Communication result
+// 	bool dxl_getdata_result = false;                 // GetParam result
+
+// 	// CKim - Read current position. Bulkread is synchronized read
+// 	dxl_comm_result = m_groupBulkRead->txRxPacket();
+// 	if (dxl_comm_result != COMM_SUCCESS)
+// 	{
+// 		fprintf(stderr,"Sparta!! ");
+// 		fprintf(stderr, "%s\n", m_packetHandler->getTxRxResult(dxl_comm_result));
+// 		return 0;
+// 	}
+
+// 	for(int i=0; i<3; i++)
+// 	{
+// 		dxl_getdata_result = m_groupBulkRead->isAvailable(m_devIds[i], ADDR_MX_PRESENT_POSITION, LEN_MX_PRESENT_POSITION);
+// 		if (dxl_getdata_result != true)
+// 		{
+// 		  fprintf(stderr, "[ID:%03d] groupBulkRead getdata failed", m_devIds[i]);
+// 		  return 0;
+// 		}
+
+// 		// Get Dynamixel present position value
+// 		pPos[i] = m_groupBulkRead->getData(m_devIds[i], ADDR_MX_PRESENT_POSITION, LEN_MX_PRESENT_POSITION);
+// 		//printf("%d  ",dxl_curr_position[i]);
+// 	}
+// 	//printf("\n ");
+
+// 	return 1;
+
+// }
+
+// bool DxlMaster::SetJpos(int *pPos)
+// {
+//     int dxl_comm_result = COMM_TX_FAIL;             // Communication result
+//     bool dxl_addparam_result = false;               // addParam result
+//     uint8_t param_goal_position[2];
+
+//     // CKim - Fill in data to write
+//     for(int i=0; i<3; i++)
+//     {
+//         // Allocate goal position value into byte array
+//         param_goal_position[0] = DXL_LOBYTE(pPos[i]);
+//         param_goal_position[1] = DXL_HIBYTE(pPos[i]);
+
+//         // Add Dynamixel#1 goal position value to the Syncwrite storage
+//         dxl_addparam_result = m_groupSyncWrite->addParam(m_devIds[i], param_goal_position);
+//         if (dxl_addparam_result != true)
+//         {
+//             fprintf(stderr, "[ID:%03d] groupSyncWrite addparam failed", m_devIds[i]);
+//             return 0;
+//         }
+//     }
+
+//     // CKim - Synchronized write to multiple dynamixel
+// 	dxl_comm_result = m_groupSyncWrite->txPacket();
+//     if (dxl_comm_result != COMM_SUCCESS)
+//     {
+//         fprintf(stderr, "%s\n", m_packetHandler->getTxRxResult(dxl_comm_result));
+//         return 0;
+//     }
+
+//     // Clear syncwrite parameter storage
+//     m_groupSyncWrite->clearParam();
+
+//     return 1;
+// }
+
+// void DxlMaster::SetGain(int id, const float* DIP)
+// {
+//     int dxl_comm_result = COMM_TX_FAIL;             // Communication result
+//     uint8_t dxl_error = 0;                          // Dynamixel error
+//     uint8_t dipGain[3];
+
+//     // CKim - Conversion formula from Dynamixel manual
+//     dipGain[0] = DIP[0]*250.0;
+//     dipGain[1] = DIP[1]*2.048;
+//     dipGain[2] = DIP[2]*8.0;
+
+//     for(int i=0;i<3; i++)
+//     {
+//         dxl_comm_result = m_packetHandler->write1ByteTxRx(m_portHandler, m_devIds[id], ADDR_DIP_GAIN+i, dipGain[i],&dxl_error);
+//         if (dxl_comm_result != COMM_SUCCESS)
+//         {
+//             printf("%s\n", m_packetHandler->getTxRxResult(dxl_comm_result));
+//         }
+//         else if (dxl_error != 0)
+//         {
+//             printf("%s\n", m_packetHandler->getRxPacketError(dxl_error));
+//         }
+//         else
+//         {
+//             printf("DIP[%d] of Dynamixel %d set\n",i,id);
+//         }
+//     }
+// }
+
+// int DxlMaster::SetOffset()
+// {
+//     int dxl_curr_position[3] = {0,0,0};  // Current position
+
+//     // CKim - Read position
+//     bool res = GetJpos(dxl_curr_position);
+//     if(!res)    {
+//         fprintf(stderr, "Error while reading position");
+//         return 0;
+//     }
+
+//     for(int i=0; i<3; i++)  {   m_MtrCntOffset[i] = dxl_curr_position[i];   }
+//     printf("Offset is %d %d %d\n", m_MtrCntOffset[0],m_MtrCntOffset[1],m_MtrCntOffset[2]);
+//     //for(int i=0; i<3; i++)  {   m_TgtMtrCnt[i] = m_MtrCntOffset[i];   }
+// }
 
 // void* DxlMaster::ThrCallback(void* pData)
 // {
