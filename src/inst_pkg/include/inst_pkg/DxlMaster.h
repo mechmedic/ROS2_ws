@@ -46,9 +46,14 @@
 ////////////////////////////end rt prempt define///////////////////////////////
 
 
-// ---------------- Dynamixel Defines --------------------------------- //
+
 #include "dynamixel_sdk/dynamixel_sdk.h"      // CKim - Uses Dynamixel SDK library that is installed with the ROS
 
+
+// ---------------- Dynamixel Defines --------------------------------- //
+// CKim - Control table data addressof MX28
+// https://emanual.robotis.com/docs/en/dxl/mx/mx-28/#control-table-data-address
+// https://emanual.robotis.com/docs/en/dxl/mx/mx-28/#cw-angle-limit
 // Control table address
 #define ADDR_MX_TORQUE_ENABLE           24                  // Control table address is different in Dynamixel model
 #define ADDR_MX_GOAL_POSITION           30

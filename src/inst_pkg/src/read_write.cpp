@@ -181,7 +181,7 @@ int main()
     printf("Succeeded to open the port!\n");
   }
   else
-  {
+
     printf("Failed to open the port!\n");
     printf("Press any key to terminate...\n");
     getch();
