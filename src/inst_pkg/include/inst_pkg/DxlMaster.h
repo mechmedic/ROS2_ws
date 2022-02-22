@@ -51,7 +51,15 @@
 #define ADDR_MX_PRESENT_SPEED           38      // Current speed (2, R, -)
 #define ADDR_MX_MOVING                  46      // Motionstate (1, R, -)
 
+// Data Byte Length
+#define LEN_MX_GOAL_POSITION            2
+#define LEN_MX_PRESENT_POSITION         2
+#define LEN_MX_MOVING_SPEED             2
+
 #endif
+
+#define TORQUE_ENABLE                   1                   // Value for enabling the torque
+#define TORQUE_DISABLE                  0                   // Value for disabling the torque
 
 // CKim - Struct for holding basic Dynamixel info 
 typedef struct {
@@ -68,25 +76,16 @@ typedef struct {
 // of the computers system in the past. Now, it refers to the general 'terminals' of the device.
 // Change this definition for the correct port. We will be using terminal of the COM port.
 #define MODEMDEVICE "/dev/ttyUSB0"		// CKim - Linux. This is for FTDI USB RS485 cable
+#define BAUDRATE    1000000
 
-// Protocol version
-#define PROTOCOL_VERSION                1.0                 // See which protocol version is used in the Dynamixel
+// CKim - Protocol version
+#ifdef USE_PROTOCOL_V2
+    #define PROTOCOL_VERSION        2.0         
+#else
+    #define PROTOCOL_VERSION        1.0         
+#endif
 
-// Default setting
-#define BAUDRATE                        1000000
-
-#define TORQUE_ENABLE                   1                   // Value for enabling the torque
-#define TORQUE_DISABLE                  0                   // Value for disabling the torque
-
-// Data Byte Length
-#define LEN_MX_GOAL_POSITION            2
-#define LEN_MX_PRESENT_POSITION         2
-#define LEN_MX_MOVING_SPEED             2
-
-#define NUM_DXL                         2                   // Number of Dynamixel
-
-#define DEG2RAD 3.141592/180.0
-#define RAD2DEG 180.0/3.141592
+#define NUM_DXL 2                   // Number of Dynamixel
 
 
 class DxlMaster
@@ -121,13 +120,18 @@ public:
     int GetVel(int id, int& vel);          
     int SetVel(int id, const int& Vel);
 
-    // CKim - Uses SyncRead and Write. GetJposAll(), GetVelAll() only available for protocol V2.0
+    // CKim - Uses SyncWrite and writes to same address of all dynamixels. 
+    // Available for all protocols and dynamixels
     int SetJposAll(const int* pList);   
     int SetVelAll(const int* vList);         
+
+    // CKim - Uses SyncRead and reads from same address of all dynamixels.
+    // Only available for protocol v2.0 and dynamixel that suppports protocol v2.0
     // int GetJposAll(int* pList);          
     // int GetVelAll(int* vList);         
     
-    
+    // CKim - Functions that uses BulkRead/Write  
+
     // void SetGain(int id, const float* DIP);  // CKim - Only for MX
     // int SetOffset();                         // CKim - Only for MX
 
@@ -145,10 +149,10 @@ private:
     // for all Dynamixel and BulkRead is available for MX and X series.
     dynamixel::GroupSyncWrite*      m_groupSyncWritePos;
     dynamixel::GroupSyncWrite*      m_groupSyncWriteVel;
-    dynamixel::GroupSyncRead*       m_groupSyncRead;
     
-    dynamixel::GroupBulkRead*       m_groupBulkRead;
-    dynamixel::GroupBulkWrite*      m_groupBulkWrite;
+    //dynamixel::GroupSyncRead*       m_groupSyncRead;
+    //dynamixel::GroupBulkRead*       m_groupBulkRead;
+    //dynamixel::GroupBulkWrite*      m_groupBulkWrite;
 
     // CKim - Dynamixel Device IDs, baud rates
     int m_Id;

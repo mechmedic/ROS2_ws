@@ -1,16 +1,17 @@
 #include "DxlMaster.h"
 #include <sys/time.h>
 #include <stdio.h>
-#define INTERVAL 20*MS
 
-//pthread_mutex_t DxlMaster::mutex1 = PTHREAD_MUTEX_INITIALIZER;
+#define INTERVAL 20*MS
+#define DEG2RAD 3.141592/180.0
+#define RAD2DEG 180.0/3.141592
 
 DxlMaster::DxlMaster()
 {
     m_groupSyncWritePos = NULL;
     m_groupSyncWriteVel = NULL;
     //m_groupBulkRead = NULL;
-    m_groupSyncRead = NULL;
+    //m_groupSyncRead = NULL;
 }
 
 DxlMaster::~DxlMaster()
@@ -54,7 +55,7 @@ int DxlMaster::InitializeDriver(const char* portName, const int baudrate, int pr
     m_groupSyncWriteVel = new dynamixel::GroupSyncWrite(m_portHandler, m_packetHandler, ADDR_MX_MOVING_SPEED, LEN_MX_MOVING_SPEED);
     
     // CKim - Set up GroupSyncRead by specifying the address to read. 
-    m_groupSyncRead = new dynamixel::GroupSyncRead(m_portHandler,m_packetHandler,ADDR_MX_PRESENT_POSITION,LEN_MX_PRESENT_POSITION);
+    //m_groupSyncRead = new dynamixel::GroupSyncRead(m_portHandler,m_packetHandler,ADDR_MX_PRESENT_POSITION,LEN_MX_PRESENT_POSITION);
 
     // CKim - Initialize GroupBulkRead for position
     //m_groupBulkRead = new dynamixel::GroupBulkRead(m_portHandler, m_packetHandler);
@@ -67,7 +68,7 @@ void DxlMaster::Disconnect()
     if(m_groupSyncWritePos)    delete m_groupSyncWritePos;
     if(m_groupSyncWriteVel)    delete m_groupSyncWriteVel;
     //if(m_groupBulkRead)     delete m_groupBulkRead;
-    if(m_groupSyncRead)     delete m_groupSyncRead;
+    //if(m_groupSyncRead)     delete m_groupSyncRead;
 
     // Close port
     m_portHandler->closePort();
