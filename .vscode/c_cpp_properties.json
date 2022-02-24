@@ -6,6 +6,9 @@
                 "${workspaceFolder}/**",
                 "/opt/ros/dashing/include",
                 "/usr/local/include/dynamixel_sdk",
+                "/usr/include",
+                "${workspaceFolder}/build/input_pkg/rosidl_generator_cpp/",
+                "${workspaceFolder}/src/input_pkg/include/input_pkg/",
                 "~/robotis_ws/install/dynamixel_sdk/include"
             ],
             "defines": [],

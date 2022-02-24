@@ -4,91 +4,169 @@
 #include <string>
 #include <math.h>
 
+// CKim - Socket Headers
+#include <arpa/inet.h>
+#include <sys/socket.h>
+#include <sys/types.h>
+#include <netinet/in.h>
+#include <fcntl.h>
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <iostream>
+#include <fstream>
+
 #include "rclcpp/rclcpp.hpp"
 #include "std_msgs/msg/string.hpp"
 #include "sensor_msgs/msg/joy.hpp"
-#include "input_pkg/msg/haptic_cmd.hpp"
+#include "input_pkg/msg/haptic_cmd.hpp"   // CKim - Header for custom message
 
+#include "hapticNode.hpp"
 
 using namespace std::chrono_literals;
 
-/* This example creates a subclass of Node and uses std::bind() to register a
-* member function as a callback from the timer. */
+// -------------------------------------------------------- //
+// CKim - This ROS node reads HapticDevice command from
+// network and publishes it
+// -------------------------------------------------------- //
 
-class MinimalPublisher : public rclcpp::Node
+
+HapticNode::HapticNode(char * argv[]) : rclcpp::Node("HapticNode")
 {
-  public:
-    MinimalPublisher()
-    : Node("minimal_publisher")
+  // CKim - Set IP and Port
+  m_IP = argv[1];     m_Port = argv[2];
+
+  // CKim - Initialize publisher
+  haptic_publisher_ = this->create_publisher<input_pkg::msg::HapticCmd>("HapticInput",10);
+
+  // CKim - Launch thread that will constantly read socket and publish data
+  future_ = exit_signal_.get_future();
+  comm_thread_ = std::thread(&HapticNode::commThread, this);  
+}
+
+void HapticNode::commThread()
+{
+  RCLCPP_INFO(get_logger(), "Starting Haptic Node");
+
+  // CKim - Initialize socket and timeout
+  int sock = socket(PF_INET, SOCK_STREAM, 0);
+  fcntl(sock, F_SETFL, O_NONBLOCK);
+  struct timeval tv;    tv.tv_sec = 10;     tv.tv_usec = 0;
+  fd_set fdset;         FD_ZERO(&fdset);    FD_SET(sock, &fdset);
+
+  // CKim - Set up address
+  struct sockaddr_in server_addr;
+	memset(&server_addr, 0, sizeof(server_addr));//서버 주소 초기화
+  server_addr.sin_family = AF_INET;
+  server_addr.sin_addr.s_addr = inet_addr(m_IP.c_str());
+  server_addr.sin_port = htons(atoi(m_Port.c_str()));
+
+  // CKim - Connect. socket is set to be non blocking, use select to wait for result
+  // and return upon error
+  RCLCPP_INFO(get_logger(),"Connecting to server at %s through port %s\n",m_IP.c_str(),m_Port.c_str());
+  connect(sock, (struct sockaddr*)&server_addr, sizeof(server_addr));
+  if(select(sock+1, NULL, &fdset, NULL, &tv)==1)
+  {
+    int so_error;     socklen_t len = sizeof(so_error);
+    getsockopt(sock, SOL_SOCKET, SO_ERROR, &so_error, &len);
+    if (so_error == 0) 
+    {   
+      RCLCPP_INFO(get_logger(),"Connected to Server!");  
+      }
+    else
     {
-      // dxl = std::make_unique<DxlMaster>();
-      // dxl->InitializeDriver(MODEMDEVICE,BAUDRATE,PROTOCOL_VERSION);
-      // dxl->GetDynamixelInfo(1);
-      // dxl->GetDynamixelInfo(2);
-      // dxl->SetWheelMode(1);
-      // dxl->SetWheelMode(2);
-
-      // printf("Enabling...\n");
-      // dxl->EnableTorque(1);
-      // dxl->EnableTorque(2);
-
-      // The "KEEP_LAST" history setting tells DDS to store a fixed-size buffer of values before they
-      // are sent, to aid with recovery in the event of dropped messages.
-      // "depth" specifies the size of this buffer.
-      // In this example, we are optimizing for performance and limited resource usage (preventing
-      // page faults), instead of reliability. Thus, we set the size of the history buffer to 1.
-      auto qos = rclcpp::QoS(rclcpp::KeepLast(1));
-      
-      // From http://www.opendds.org/qosusages.html: "A RELIABLE setting can potentially block while
-      // trying to send." Therefore set the policy to best effort to avoid blocking during execution.
-      qos.best_effort();
-      joystick_subscriber_ = this->create_subscription<sensor_msgs::msg::Joy>("joy", qos, 
-                                    std::bind(&MinimalPublisher::JstckCallbacks, this,std::placeholders::_1));
+        RCLCPP_INFO(get_logger(),"Error during connection! Press Ctrl+C to terminate."); 
+        close(sock);
+        return;
     }
+  }
+  else  
+  {
+    RCLCPP_INFO(get_logger(),"Timeout in select()! Press Ctrl+C to terminate."); 
+    close(sock);
+    return;
+  }
 
-  private:
-    // CKim - Subscriber for joystick
-    rclcpp::Subscription<sensor_msgs::msg::Joy>::SharedPtr  joystick_subscriber_;
-
-    // CKim - Call back for joystick messages
-    void JstckCallbacks(const sensor_msgs::msg::Joy::SharedPtr msg)
-    {
-      //RCLCPP_INFO(this->get_logger(), "Jstck messages %.2f, %.2f", msg->axes[0], msg->axes[3]);
-      //controller_.left_x_axis_  = msg->axes[0];       //controller_.left_y_axis_  = msg->axes[1];
-      //controller_.right_x_axis_ = msg->axes[3];       //controller_.right_y_axis_ = msg->axes[4];
-
-      // MX28 0~2047 (0X7FF) can be used, and the unit is about 0.114rpm.
-      // If a value in the range of 0~1023 is used, it is stopped by setting to 0 while rotating to CCW direction.
-      // If a value in the range of 1024~2047 is used, it is stopped by setting to 1024 while rotating to CW direction.
-      // That is, the 10th bit becomes the direction bit to control the direction.
-      int vel[2];     int Amp = 600;
-      vel[0] = Amp*fabs(msg->axes[0]);
-      vel[1] = Amp*fabs(msg->axes[3]);
-      if(msg->axes[0] < 0)  {   vel[0] += 1024;   }   
-      if(msg->axes[3] < 0)  {   vel[1] += 1024;   }   
-      // dxl->SetVelAll(vel);
+  // CKim - Read from socket and publish
+  std::future_status status;
+  status = future_.wait_for(std::chrono::seconds(0));
+  RCLCPP_INFO(get_logger(),"Entering communication loop!");
+  while(status == std::future_status::timeout)
+  {
+    // ----------------------------------------------------------- //
+    // CKim - This code is using no protocol. Just 6 doubles
+    // ----------------------------------------------------------- //
+    // CKim - Allocate memory for 6 doubles and 2 ints
+    int leng = 6*sizeof(double) + 2*sizeof(int);
+    char* str2 = new char[leng]; //길이 만큼 배열 동적할당
+    if (str2 == (char *) 0) {
+      RCLCPP_INFO(get_logger(),"Memory error!");
+      break;
     }
+  	memset(str2, 0, leng);
 
-    // std::unique_ptr<DxlMaster>  dxl;
+    // CKim - Read and check the size of data received
+    int real_recv_len, real_recv_byte;
+		real_recv_len = 0;
+		real_recv_byte = 0;
 
-};
+		while (real_recv_len < leng) {
+			real_recv_byte = read(sock, &str2[real_recv_len],
+					leng - real_recv_len);
+			real_recv_len += real_recv_byte;
+		}
+
+    // CKim - Convert received bytes to doubles and ints
+ 		double* val = (double*) str2;
+    int* btn = (int*) (str2+6*sizeof(double));
+
+    // CKim - Fill the messag and publish data
+		// First three element X, Y, Z increment. In mm
+		// X: -/+ Left Right 		// Y: -/+ Down Up 		// Z: -/+ In / Out
+		// Last three element Roll (Z) Pitch (X) Yaw (Y). In degree
+    for(int i=0; i<3; i++)	{
+			hapticMsg.array[i] = val[i];			}
+		for(int i=3; i<6; i++)	{
+            hapticMsg.array[i] = val[i];  }//*2000.0;			}
+		hapticMsg.btn[0] = btn[0];
+		hapticMsg.btn[1] = btn[1];
+
+    haptic_publisher_->publish(hapticMsg);
+
+    status = future_.wait_for(std::chrono::seconds(0));
+  }
+
+  // CKim - End communication
+  RCLCPP_INFO(get_logger(),"Leaving communication loop!");
+  close(sock);
+  return;
+}
+
+HapticNode::~HapticNode()
+{
+  // CKim - Trigger exit signal to stop the thread
+  exit_signal_.set_value();
+  comm_thread_.join();
+}
 
 int main(int argc, char * argv[])
 {
+  // CKim - Node is launched with argument specifying IP and port
+  if(argc<3)
+  {
+    printf("Usage : %s <IP> <port> \n", "ros2 run input_pkg hapticNode");
+    exit(1);
+  }
+
   rclcpp::init(argc, argv);
-  rclcpp::spin(std::make_shared<MinimalPublisher>());
+  rclcpp::spin(std::make_shared<HapticNode>(argv));
   printf("Spinning ended\n");
   rclcpp::shutdown();
   // for(int i=1; i<3; i++)  {   dxl.DisableTorque(i);  }
   // dxl.Disconnect();
   return 0;
 }
-
-
-
-
-
-
 
 
 // -------------------------------

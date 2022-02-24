@@ -1,4 +1,7 @@
 {
     "cmake.configureOnOpen": false,
-    "C_Cpp.intelliSenseEngineFallback": "Enabled"
+    "C_Cpp.intelliSenseEngineFallback": "Enabled",
+    "files.associations": {
+        "*.idl": "cpp"
+    }
 }
