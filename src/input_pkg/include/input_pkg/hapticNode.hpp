@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------
-// Ckim - Haptic Device Node for ROS2
-// Connects to haptic device PC by TCP/IP
+// Ckim - Haptic Device Node (client) for ROS2
+// Connects to haptic device PC (master) by TCP/IP
 // reads incoming data and publishes HapticCmd
 // Based on ROS2 joystick node code at
 // https://github.com/ros-drivers/joystick_drivers/tree/ros2/joy

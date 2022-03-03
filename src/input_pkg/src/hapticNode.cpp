@@ -57,7 +57,7 @@ void HapticNode::commThread()
 
   // CKim - Set up address
   struct sockaddr_in server_addr;
-	memset(&server_addr, 0, sizeof(server_addr));//서버 주소 초기화
+	memset(&server_addr, 0, sizeof(server_addr)); //Initialize to zero
   server_addr.sin_family = AF_INET;
   server_addr.sin_addr.s_addr = inet_addr(m_IP.c_str());
   server_addr.sin_port = htons(atoi(m_Port.c_str()));
@@ -73,7 +73,7 @@ void HapticNode::commThread()
     if (so_error == 0) 
     {   
       RCLCPP_INFO(get_logger(),"Connected to Server!");  
-      }
+    }
     else
     {
         RCLCPP_INFO(get_logger(),"Error during connection! Press Ctrl+C to terminate."); 
@@ -88,7 +88,9 @@ void HapticNode::commThread()
     return;
   }
 
-  // CKim - Read from socket and publish
+  // CKim - Read from socket and publish. Socket must be set back to blocking mode
+  // for the code below to work
+  fcntl(sock, F_SETFL, fcntl(sock, F_GETFL) & ~O_NONBLOCK);
   std::future_status status;
   status = future_.wait_for(std::chrono::seconds(0));
   RCLCPP_INFO(get_logger(),"Entering communication loop!");
